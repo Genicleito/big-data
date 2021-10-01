@@ -5,17 +5,18 @@ from pyspark.sql.types import *
 from pyspark.sql import Window
 import pandas as pd
 
-def get_info_dataframe(df, columns, debug=True):
-    """Obtém informações sobre as colunas de um dataframe `df`.
+def get_info_dataframe(df, columns=None):
+    """Obtém informações sobre os IDs de um dataframe `df`.
     """
-    if not isinstance(columns, list): columns = [columns]
+    import pandas as pd
+    if not columns: columns = df.columns
+    if not isinstance(columns, list): columns = [columns] 
     tot = df.count()
-    d = {col: {} for col in columns}
-    for col in (columns if not debug else tqdm(columns)):
-        d[col]['null'] = df.filter(F.col(col).isNull()).count()
-        d[col]['notNull'] = tot - d[col]['null']
-        d[col]['unique'] = df.select(col).distinct().count()
-        d[col]['uniqueNotNull'] = df.select(col).filter(F.col(col).isNotNull()).distinct().count()
-        d[col]['duplicates'] = tot - d[col]['unique']
-        d[col]['duplicatesNotNull'] = d[col]['notNull'] - d[col]['uniqueNotNull']
-    return pd.DataFrame(d).T
+    new_df = pd.DataFrame()
+    new_df = df.select(*(F.count(c).alias(c) for c in columns)).toPandas().rename(index={0: 'notNull'}).astype(int)
+    new_df = new_df.append(pd.DataFrame({c: {'null': tot - new_df.loc['notNull', c]} for c in columns}))
+    new_df = new_df.append(df.select(*(F.countDistinct(c).alias(c) for c in columns)).toPandas().rename(index={0: 'uniqueNotNull'}).astype(int))
+    new_df = new_df.append(pd.DataFrame({c: {'unique': new_df.loc['uniqueNotNull', c] + (0 if new_df.loc['null', c] == 0 else 1)} for c in columns}))
+    new_df = new_df.append(pd.DataFrame({c: {'duplicatesNotNull': new_df.loc['notNull', c] - new_df.loc['uniqueNotNull', c]} for c in columns}))
+    new_df = new_df.append(pd.DataFrame({c: {'duplicates': tot - new_df.loc['unique', c]} for c in columns}))
+    return new_df.T
