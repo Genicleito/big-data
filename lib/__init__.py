@@ -4,6 +4,9 @@ import pyspark.sql.functions as F
 from pyspark.sql.types import *
 from pyspark.sql import Window
 import pandas as pd
+import datetime
+
+now = lambda: datetime.datetime.now()
 
 def get_info_dataframe(df, columns=None):
     """Obtém informações sobre os IDs de um dataframe `df`.
@@ -20,3 +23,24 @@ def get_info_dataframe(df, columns=None):
     new_df = new_df.append(pd.DataFrame({c: {'duplicatesNotNull': new_df.loc['notNull', c] - new_df.loc['uniqueNotNull', c]} for c in columns}))
     new_df = new_df.append(pd.DataFrame({c: {'duplicates': tot - new_df.loc['unique', c]} for c in columns}))
     return new_df.T
+
+def checkpoint(df, temp_path, repartition=None, storage_level=None, unpersist=True, retry_seconds=5, debug=True):
+    # Write temp path
+    temp_code = f"{now().strftime('%Y%m%d_%H%M%S')}_checkpoint"
+    path = f'{temp_path[:-1]}/{temp_code}' if temp_path.endswith('/') else f'{temp_path}/{temp_code}'
+    # debug
+    if debug: print(f'{now()}: writing temp files in `{path}`...')
+    if debug: ts = now()
+    
+    if repartition:
+        df.repartition(repartition).write.parquet(path, mode='overwrite')
+    else:
+        df.write.parquet(path, mode='overwrite')
+    if debug: print(f'{now()}: Checkpoint execution time: {now() - ts}')
+    if unpersist: df.unpersist()
+    # Read and return
+    try:
+        return spark.read.parquet(path).persist(storage_level) if storage_level else spark.read.parquet(path)
+    except:
+        time.sleep(retry_seconds) # wait `retry_seconds` seconds
+        return spark.read.parquet(path).persist(storage_level) if storage_level else spark.read.parquet(path)
