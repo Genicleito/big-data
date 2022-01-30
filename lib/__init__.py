@@ -26,7 +26,7 @@ def get_info_dataframe(df, columns=None):
 
 def checkpoint(df, temp_path, repartition=None, storage_level=None, unpersist=True, retry_seconds=5, debug=True):
     # Write temp path
-    temp_code = f"{now().strftime('%Y%m%d_%H%M%S')}_checkpoint"
+    temp_code = f"{now().strftime('%Y%m%d%H%M%S')}_checkpoint"
     path = f'{temp_path[:-1]}/{temp_code}' if temp_path.endswith('/') else f'{temp_path}/{temp_code}'
     # debug
     if debug: print(f'{now()}: writing temp files in `{path}`...')
