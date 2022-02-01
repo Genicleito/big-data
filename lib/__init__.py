@@ -1,7 +1,7 @@
 """Biblioteca com funções úteis para a manipulação de grandes volumes de dados com o PySpark.
 """
 import pyspark.sql.functions as F
-from pyspark.sql.types import *
+import pyspark.sql.types as T
 from pyspark.sql import Window
 import pandas as pd
 import datetime
@@ -44,3 +44,9 @@ def checkpoint(df, temp_path, repartition=None, storage_level=None, unpersist=Tr
     except:
         time.sleep(retry_seconds) # wait `retry_seconds` seconds
         return spark.read.parquet(path).persist(storage_level) if storage_level else spark.read.parquet(path)
+    
+def count_null_columns(df, columns=None):
+    return df.withColumn(
+        'count_nulls',
+        sum([F.col(x).isNull().cast('int') for x in (columns if columns else df.columns)]
+    )
